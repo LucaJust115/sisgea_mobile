@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'telas/tela_inicial.dart';
+import 'telas/tela_agendamento.dart';
 
 void main() {
   runApp(SisgeaApp());
@@ -13,9 +14,8 @@ class SisgeaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.red,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: TelaInicial(usuario: '',),
+      home: TelaInicial(usuario: 'Gabriel'),
     );
   }
 }
