@@ -13,7 +13,7 @@ class _TelaAeronaveState extends State<TelaAeronave> {
   String matricula = '';
   String modelo = '';
   String fabricante = '';
-  String habilitacao = 'VFR';
+  String habilitacao = 'VFR-D';
   String tipoVoo = 'Regular';
   double horasVoo = 0.0;
 
@@ -203,7 +203,7 @@ class _TelaAeronaveState extends State<TelaAeronave> {
     matricula = '';
     modelo = '';
     fabricante = '';
-    habilitacao = 'VFR';
+    habilitacao = 'VFR-D';
     tipoVoo = 'Regular';
     horasVoo = 0.0;
     edit = null;

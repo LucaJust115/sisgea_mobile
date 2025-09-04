@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'tela_agendamento.dart';
 import 'tela_aeronave.dart';
+import 'tela_aluno.dart';
+import 'tela_instrutor.dart';
+import 'tela_manutencao.dart';
+import 'tela_diario.dart';
+import '../widgets/card_funcionalidade.dart';
 
 class TelaInicial extends StatelessWidget {
   final String usuario;
@@ -34,10 +39,10 @@ class TelaInicial extends StatelessWidget {
               ),
               _itemMenu(Icons.schedule, 'Agendamento', context, TelaAgendamento()),
               _itemMenu(Icons.airplanemode_active, 'Aeronave', context, TelaAeronave()),
-              _itemMenu(Icons.person, 'Aluno', context, null),
-              _itemMenu(Icons.school, 'Instrutor', context, null),
-              _itemMenu(Icons.build, 'Manutenção', context, null),
-              _itemMenu(Icons.book, 'Diário', context, null),
+              _itemMenu(Icons.person, 'Aluno', context, TelaAluno()),
+              _itemMenu(Icons.school, 'Instrutor', context, TelaInstrutor()),
+              _itemMenu(Icons.build, 'Manutenção', context, TelaManutencao()),
+              _itemMenu(Icons.book, 'Diário de Bordo', context, TelaDiario()),
             ],
           ),
         ),
@@ -61,24 +66,42 @@ class TelaInicial extends StatelessWidget {
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 children: [
-                  _cartaoFuncionalidade(
-                    Icons.schedule,
-                    'Agendamento',
-                    Colors.redAccent,
-                    context,
-                    TelaAgendamento(),
+                  CardFuncionalidade(
+                    icone: Icons.schedule,
+                    titulo: 'Agendamento',
+                    cor: Colors.redAccent,
+                    tela: TelaAgendamento(),
                   ),
-                  _cartaoFuncionalidade(
-                    Icons.airplanemode_active,
-                    'Aeronave',
-                    Colors.orange,
-                    context,
-                    TelaAeronave(),
+                  CardFuncionalidade(
+                    icone: Icons.airplanemode_active,
+                    titulo: 'Aeronave',
+                    cor: Colors.orange,
+                    tela: TelaAeronave(),
                   ),
-                  _cartaoFuncionalidade(Icons.person, 'Aluno', Colors.blue, context, null),
-                  _cartaoFuncionalidade(Icons.school, 'Instrutor', Colors.green, context, null),
-                  _cartaoFuncionalidade(Icons.build, 'Manutenção', Colors.purple, context, null),
-                  _cartaoFuncionalidade(Icons.book, 'Diário de Bordo', Colors.teal, context, null),
+                  CardFuncionalidade(
+                    icone: Icons.person,
+                    titulo: 'Aluno',
+                    cor: Colors.blue,
+                    tela: TelaAluno(),
+                  ),
+                  CardFuncionalidade(
+                    icone: Icons.school,
+                    titulo: 'Instrutor',
+                    cor: Colors.green,
+                    tela: TelaInstrutor(),
+                  ),
+                  CardFuncionalidade(
+                    icone: Icons.build,
+                    titulo: 'Manutenção',
+                    cor: Colors.purple,
+                    tela: TelaManutencao(),
+                  ),
+                  CardFuncionalidade(
+                    icone: Icons.book,
+                    titulo: 'Diário de Bordo',
+                    cor: Colors.teal,
+                    tela: TelaDiario(),
+                  ),
                 ],
               ),
             ),
@@ -88,62 +111,17 @@ class TelaInicial extends StatelessWidget {
     );
   }
 
-  Widget _itemMenu(IconData icone, String titulo, BuildContext contexto, Widget? tela) {
+  Widget _itemMenu(IconData icone, String titulo, BuildContext contexto, Widget tela) {
     return ListTile(
       leading: Icon(icone, color: Colors.white),
       title: Text(titulo, style: TextStyle(color: Colors.white)),
       onTap: () {
         Navigator.pop(contexto); // fecha o drawer
-        if (tela != null) {
-          Navigator.push(
-            contexto,
-            MaterialPageRoute(builder: (context) => tela),
-          );
-        } else {
-          ScaffoldMessenger.of(contexto).showSnackBar(
-            SnackBar(content: Text('$titulo em desenvolvimento')),
-          );
-        }
+        Navigator.push(
+          contexto,
+          MaterialPageRoute(builder: (context) => tela),
+        );
       },
-    );
-  }
-
-  Widget _cartaoFuncionalidade(IconData icone, String titulo, Color cor, BuildContext contexto, Widget? tela) {
-    return Card(
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: cor,
-      child: InkWell(
-        onTap: () {
-          if (tela != null) {
-            Navigator.push(
-              contexto,
-              MaterialPageRoute(builder: (context) => tela),
-            );
-          } else {
-            ScaffoldMessenger.of(contexto).showSnackBar(
-              SnackBar(content: Text('$titulo em desenvolvimento')),
-            );
-          }
-        },
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icone, size: 48, color: Colors.white),
-              SizedBox(height: 10),
-              Text(
-                titulo,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              )
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
