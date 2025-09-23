@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:sisgea_mobile/config.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+
 
 class TelaAeronave extends StatefulWidget {
   @override
@@ -6,6 +11,8 @@ class TelaAeronave extends StatefulWidget {
 }
 
 class _TelaAeronaveState extends State<TelaAeronave> {
+  final String apiUrl = AppConfig.apiUrl + "/api/aeronaves";
+
   // Lista de aeronaves
   List<Map<String, dynamic>> aeronaves = [];
 
@@ -21,23 +28,79 @@ class _TelaAeronaveState extends State<TelaAeronave> {
   Map<String, dynamic>? edit;
 
   @override
+  void initState() {
+    super.initState();
+    _fetchAeronaves();
+  }
+
+  Future<void> _fetchAeronaves() async {
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          aeronaves = data.cast<Map<String, dynamic>>();
+        });
+      }
+    } catch (e) {
+      print("Erro ao buscar aeronaves: $e");
+    }
+  }
+
+  Future<void> _salvarAeronaveAPI(Map<String, dynamic> aeronave) async {
+    try {
+      if (edit != null) {
+        // PUT - atualizar aeronave existente
+        final response = await http.put(
+          Uri.parse("$apiUrl/${edit!['id']}"),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode(aeronave),
+        );
+        if (response.statusCode == 200) {
+          _fetchAeronaves();
+        }
+      } else {
+        // POST - cadastrar nova aeronave
+        final response = await http.post(
+          Uri.parse(apiUrl),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode(aeronave),
+        );
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          _fetchAeronaves();
+        }
+      }
+    } catch (e) {
+      print("Erro ao salvar aeronave: $e");
+    }
+  }
+
+  Future<void> _deletarAeronaveAPI(Map<String, dynamic> aer) async {
+    try {
+      final response = await http.delete(
+        Uri.parse("$apiUrl/${aer['id']}"),
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          aeronaves.remove(aer);
+        });
+      }
+    } catch (e) {
+      print("Erro ao deletar aeronave: $e");
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Aeronaves'),
-      ),
+      appBar: AppBar(title: Text('Aeronaves')),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
             Expanded(
               child: aeronaves.isEmpty
-                  ? Center(
-                child: Text(
-                  'Nenhuma aeronave cadastrada',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              )
+                  ? Center(child: Text('Nenhuma aeronave cadastrada'))
                   : ListView.builder(
                 itemCount: aeronaves.length,
                 itemBuilder: (context, index) {
@@ -55,7 +118,7 @@ class _TelaAeronaveState extends State<TelaAeronave> {
                           ),
                           IconButton(
                             icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deletarAeronave(aer),
+                            onPressed: () => _deletarAeronaveAPI(aer),
                           ),
                         ],
                       ),
@@ -76,14 +139,13 @@ class _TelaAeronaveState extends State<TelaAeronave> {
   }
 
   void _abrirFormularioAeronave({Map<String, dynamic>? edit}) {
-    // Se for edição, preenche os campos
     if (edit != null) {
       matricula = edit['matricula'];
       modelo = edit['modelo'];
       fabricante = edit['fabricante'];
       habilitacao = edit['habilitacao'];
       tipoVoo = edit['tipo_de_voo'];
-      horasVoo = edit['horas_de_voo'];
+      horasVoo = (edit['horas_de_voo'] as num).toDouble();
       this.edit = edit;
     }
 
@@ -161,7 +223,6 @@ class _TelaAeronaveState extends State<TelaAeronave> {
       return;
     }
 
-    // Validação básica do prefixo da matrícula
     final prefixosValidos = ['PT', 'PP', 'PR', 'PS', 'PU'];
     if (matricula.length < 2 || !prefixosValidos.contains(matricula.substring(0, 2))) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -179,24 +240,10 @@ class _TelaAeronaveState extends State<TelaAeronave> {
       'horas_de_voo': horasVoo,
     };
 
-    setState(() {
-      if (edit != null) {
-        final index = aeronaves.indexOf(edit!);
-        if (index != -1) {
-          aeronaves[index] = novaAeronave;
-        }
-        this.edit = null;
-      } else {
-        aeronaves.add(novaAeronave);
-      }
-      _resetFormulario();
-    });
+    _salvarAeronaveAPI(novaAeronave);
 
+    _resetFormulario();
     Navigator.pop(context);
-  }
-
-  void _deletarAeronave(Map<String, dynamic> aer) {
-    setState(() => aeronaves.remove(aer));
   }
 
   void _resetFormulario() {
