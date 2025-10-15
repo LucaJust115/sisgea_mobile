@@ -11,28 +11,29 @@ class TelaAgendamento extends StatefulWidget {
 class _TelaAgendamentoState extends State<TelaAgendamento> {
   final String apiUrl = AppConfig.apiUrl + "/api/agendamentos";
 
-  String? aeronaveSelecionada;
+  Map<String, dynamic> mapAlunos = {};
+  Map<String, dynamic> mapInstrutores = {};
+  Map<String, dynamic> mapAeronaves = {};
+
   String? alunoSelecionado;
   String? instrutorSelecionado;
+  String? aeronaveSelecionada;
   String partida = '';
   String destino = '';
-  String tipoVoo = 'Regular';
+  String tipoVoo = 'VFR-D';
   DateTime? dataAgendamento;
   TimeOfDay? horarioAgendamento;
   String status = 'Pendente';
 
-  List<String> aeronaves = [];
-  List<String> alunos = [];
-  List<String> instrutores = [];
-
   List<Map<String, dynamic>> agendamentos = [];
   Map<String, dynamic>? edit;
+
+  bool carregandoListas = true;
 
   @override
   void initState() {
     super.initState();
-    _carregarAgendamentos();
-    _carregarListas();
+    _carregarListas().then((_) => _carregarAgendamentos());
   }
 
   Future<void> _carregarAgendamentos() async {
@@ -49,30 +50,34 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
 
   Future<void> _carregarListas() async {
     try {
-      final alunosResp =
-      await http.get(Uri.parse(AppConfig.apiUrl + "/api/alunos"));
+      // Alunos
+      final alunosResp = await http.get(Uri.parse(AppConfig.apiUrl + "/api/alunos"));
       if (alunosResp.statusCode == 200) {
         final List data = jsonDecode(alunosResp.body);
-        setState(() => alunos = List<String>.from(data.map((a) => a['nome'])));
+        mapAlunos = {for (var a in data) a['nome']: a['cpf'] ?? a['id'] ?? a['nome']};
+        print('Alunos carregados: ${mapAlunos.length}');
       }
 
-      final aeronavesResp =
-      await http.get(Uri.parse(AppConfig.apiUrl + "/api/aeronaves"));
-      if (aeronavesResp.statusCode == 200) {
-        final List data = jsonDecode(aeronavesResp.body);
-        setState(
-                () => aeronaves = List<String>.from(data.map((a) => a['matricula'])));
-      }
-
-      final instrutoresResp =
-      await http.get(Uri.parse(AppConfig.apiUrl + "/api/instrutores"));
+      // Instrutores
+      final instrutoresResp = await http.get(Uri.parse(AppConfig.apiUrl + "/api/instrutores"));
       if (instrutoresResp.statusCode == 200) {
         final List data = jsonDecode(instrutoresResp.body);
-        setState(() =>
-        instrutores = List<String>.from(data.map((i) => i['nome'])));
+        mapInstrutores = {for (var i in data) i['nome']: i['cpf'] ?? i['nome']};
+        print('Instrutores carregados: ${mapInstrutores.length}');
       }
+
+      // Aeronaves
+      final aeronavesResp = await http.get(Uri.parse(AppConfig.apiUrl + "/api/aeronaves"));
+      if (aeronavesResp.statusCode == 200) {
+        final List data = jsonDecode(aeronavesResp.body);
+        mapAeronaves = {for (var a in data) a['matricula']: a['matricula'] ?? a['id']};
+        print('Aeronaves carregadas: ${mapAeronaves.length}');
+      }
+
+      setState(() => carregandoListas = false);
     } catch (e) {
       print('Erro ao carregar listas: $e');
+      setState(() => carregandoListas = false);
     }
   }
 
@@ -80,31 +85,28 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Agendamentos')),
-      body: Padding(
+      body: carregandoListas
+          ? Center(child: CircularProgressIndicator())
+          : Padding(
         padding: EdgeInsets.all(16),
         child: agendamentos.isEmpty
-            ? Center(
-          child: Text(
-            'Nenhum agendamento cadastrado',
-            style: TextStyle(color: Colors.grey),
-          ),
-        )
+            ? Center(child: Text('Nenhum agendamento cadastrado'))
             : ListView.builder(
           itemCount: agendamentos.length,
           itemBuilder: (context, index) {
             final ag = agendamentos[index];
             return Card(
               child: ListTile(
-                title: Text('${ag['aeronave']} - ${ag['aluno']}'),
+                title: Text(
+                    '${ag['aeronave']?['matricula'] ?? '---'} - ${ag['aluno']?['nome'] ?? '---'}'),
                 subtitle: Text(
-                    'Instrutor: ${ag['instrutor']} | Data: ${ag['data']} | Status: ${ag['status']}'),
+                    'Instrutor: ${ag['instrutor']?['nome'] ?? '---'} | Data: ${ag['data'] ?? '---'} | Status: ${ag['status'] ?? '---'}'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () =>
-                          _abrirFormularioAgendamento(edit: ag),
+                      onPressed: () => _abrirFormularioAgendamento(edit: ag),
                     ),
                     IconButton(
                       icon: Icon(Icons.delete, color: Colors.red),
@@ -120,28 +122,22 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _abrirFormularioAgendamento(),
         child: Icon(Icons.add),
-        tooltip: 'Novo Agendamento',
       ),
     );
   }
 
   void _abrirFormularioAgendamento({Map<String, dynamic>? edit}) {
     if (edit != null) {
-      aeronaveSelecionada =
-      aeronaves.contains(edit['aeronave']) ? edit['aeronave'] : null;
-      alunoSelecionado = alunos.contains(edit['aluno']) ? edit['aluno'] : null;
-      instrutorSelecionado =
-      instrutores.contains(edit['instrutor']) ? edit['instrutor'] : null;
-      partida = edit['partida'];
-      destino = edit['destino'];
-      tipoVoo =
-      ['Regular', 'Instrucional', 'Emergencial'].contains(edit['tipoVoo'])
-          ? edit['tipoVoo']
-          : 'Regular';
+      aeronaveSelecionada = edit['aeronave']?['matricula'];
+      alunoSelecionado = edit['aluno']?['nome'];
+      instrutorSelecionado = edit['instrutor']?['nome'];
+      partida = edit['origem'] ?? '';
+      destino = edit['destino'] ?? '';
+      tipoVoo = edit['tipoVoo'] ?? 'VFR-D';
       DateTime dt = DateTime.parse(edit['data']);
       dataAgendamento = DateTime(dt.year, dt.month, dt.day);
       horarioAgendamento = TimeOfDay(hour: dt.hour, minute: dt.minute);
-      status = edit['status'];
+      status = edit['status'] ?? 'Pendente';
       this.edit = edit;
     }
 
@@ -149,14 +145,13 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title:
-          Text(edit != null ? 'Editar Agendamento' : 'Novo Agendamento'),
+          title: Text(edit != null ? 'Editar Agendamento' : 'Novo Agendamento'),
           content: SingleChildScrollView(
             child: Column(
               children: [
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(labelText: 'Aeronave'),
-                  items: aeronaves
+                  items: mapAeronaves.keys
                       .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                       .toList(),
                   value: aeronaveSelecionada,
@@ -164,7 +159,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                 ),
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(labelText: 'Aluno'),
-                  items: alunos
+                  items: mapAlunos.keys
                       .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                       .toList(),
                   value: alunoSelecionado,
@@ -172,7 +167,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                 ),
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(labelText: 'Instrutor'),
-                  items: instrutores
+                  items: mapInstrutores.keys
                       .map((i) => DropdownMenuItem(value: i, child: Text(i)))
                       .toList(),
                   value: instrutorSelecionado,
@@ -180,7 +175,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                 ),
                 TextFormField(
                   initialValue: partida,
-                  decoration: InputDecoration(labelText: 'Partida'),
+                  decoration: InputDecoration(labelText: 'Origem'),
                   onChanged: (val) => partida = val,
                 ),
                 TextFormField(
@@ -190,7 +185,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                 ),
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(labelText: 'Tipo de Voo'),
-                  items: ['Regular', 'Instrucional', 'Emergencial']
+                  items: ['VFR-D', 'VFR-N', 'IFR']
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
                   value: tipoVoo,
@@ -254,15 +249,19 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
     );
 
     final novoAgendamento = {
-      'aeronave': aeronaveSelecionada,
-      'aluno': alunoSelecionado,
-      'instrutor': instrutorSelecionado,
-      'partida': partida,
-      'destino': destino,
-      'tipoVoo': tipoVoo,
-      'data': dataCompleta.toIso8601String(),
-      'status': status,
+      "aeronave": {"matricula": mapAeronaves[aeronaveSelecionada]},
+      "aluno": {"cpf": mapAlunos[alunoSelecionado]},
+      "instrutor": {"cpf": mapInstrutores[instrutorSelecionado]},
+      "partida": partida,
+      "destino": destino,
+      "tipo_voo": tipoVoo,
+      "status": status,
+      "horario_partida": dataCompleta.toString().split('.').first,
+      "horario_retorno": dataCompleta.add(Duration(hours: 1)).toString().split('.').first,
     };
+
+    print("JSON ENVIADO:");
+    print(jsonEncode(novoAgendamento));
 
     try {
       http.Response response;
@@ -279,6 +278,9 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
           body: jsonEncode(novoAgendamento),
         );
       }
+
+      print("Status code: ${response.statusCode}");
+      print("Response body: ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         Navigator.pop(context);
@@ -319,7 +321,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
     instrutorSelecionado = null;
     partida = '';
     destino = '';
-    tipoVoo = 'Regular';
+    tipoVoo = 'VFR-D';
     dataAgendamento = null;
     horarioAgendamento = null;
     status = 'Pendente';

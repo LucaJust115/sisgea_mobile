@@ -12,21 +12,45 @@ class TelaAluno extends StatefulWidget {
 class _TelaAlunoState extends State<TelaAluno> {
   final String apiUrl = AppConfig.apiUrl + "/api/alunos";
   List<Map<String, dynamic>> alunos = [];
-  String cpf = '';
-  String canac = '';
-  String nome = '';
-  String telefone = '';
-  String email = '';
-  String curso = '';
-  double horasCompradas = 0.0;
-  double horasVoadas = 0.0;
   Map<String, dynamic>? edit;
   bool carregando = true;
 
+  // Controllers
+  final _nomeController = TextEditingController();
+  final _cpfController = TextEditingController();
+  final _canacController = TextEditingController();
+  final _telefoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _cursoController = TextEditingController();
+  final _cepController = TextEditingController();
+  final _logradouroController = TextEditingController();
+  final _numeroController = TextEditingController();
+  final _complementoController = TextEditingController();
+  final _bairroController = TextEditingController();
+  final _cidadeController = TextEditingController();
+  final _estadoController = TextEditingController();
+  final _horasCompradasController = TextEditingController();
+  final _horasVoadasController = TextEditingController();
+
+  // Máscaras
   final cpfMaskFormatter = MaskTextInputFormatter(
     mask: '###.###.###-##',
     filter: {"#": RegExp(r'[0-9]')},
-    type: MaskAutoCompletionType.lazy,
+  );
+
+  final canacMaskFormatter = MaskTextInputFormatter(
+    mask: '######',
+    filter: {"#": RegExp(r'[0-9]')},
+  );
+
+  final telefoneMaskFormatter = MaskTextInputFormatter(
+    mask: '(##) #####-####',
+    filter: {"#": RegExp(r'[0-9]')},
+  );
+
+  final cepMaskFormatter = MaskTextInputFormatter(
+    mask: '#####-###',
+    filter: {"#": RegExp(r'[0-9]')},
   );
 
   final List<String> cursosDisponiveis = [
@@ -34,6 +58,7 @@ class _TelaAlunoState extends State<TelaAluno> {
     'Piloto Comercial',
     'Piloto Comercial / IFR',
     'Instrutor de Voo',
+    'IFR',
   ];
 
   @override
@@ -52,14 +77,45 @@ class _TelaAlunoState extends State<TelaAluno> {
           carregando = false;
         });
       } else {
-        debugPrint(
-            'Erro ao carregar alunos: status ${response.statusCode}, body: ${response.body}');
         setState(() => carregando = false);
       }
     } catch (e) {
-      debugPrint('Exceção ao carregar alunos: $e');
       setState(() => carregando = false);
     }
+  }
+
+  Future<void> _buscarEnderecoPorCep(String cep) async {
+    if (cep.length != 8) return;
+    try {
+      final response =
+      await http.get(Uri.parse("https://viacep.com.br/ws/$cep/json/"));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data["erro"] == null) {
+          setState(() {
+            _logradouroController.text = data["logradouro"] ?? '';
+            _bairroController.text = data["bairro"] ?? '';
+            _cidadeController.text = data["localidade"] ?? '';
+            _estadoController.text = data["uf"] ?? '';
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Erro ao buscar CEP: $e");
+    }
+  }
+
+  Future<bool> _cpfOuCanacJaExiste(String campo, String valor) async {
+    try {
+      final response = await http.get(Uri.parse("$apiUrl?$campo=$valor"));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.isNotEmpty;
+      }
+    } catch (e) {
+      debugPrint("Erro ao verificar duplicidade: $e");
+    }
+    return false;
   }
 
   @override
@@ -89,14 +145,12 @@ class _TelaAlunoState extends State<TelaAluno> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon:
-                            Icon(Icons.edit, color: Colors.blue),
+                            icon: Icon(Icons.edit, color: Colors.blue),
                             onPressed: () =>
                                 _abrirFormularioAluno(edit: aluno),
                           ),
                           IconButton(
-                            icon:
-                            Icon(Icons.delete, color: Colors.red),
+                            icon: Icon(Icons.delete, color: Colors.red),
                             onPressed: () => _deletarAluno(aluno),
                           ),
                         ],
@@ -124,20 +178,27 @@ class _TelaAlunoState extends State<TelaAluno> {
 
   void _abrirFormularioAluno({Map<String, dynamic>? edit}) {
     if (edit != null) {
-      cpf = edit['cpf'] ?? '';
-      cpfMaskFormatter.formatEditUpdate(
-          TextEditingValue(), TextEditingValue(text: cpf));
-      canac = edit['canac']?.toString() ?? '';
-      nome = edit['nome'] ?? '';
-      telefone = edit['telefone'] ?? '';
-      email = edit['email'] ?? '';
-      curso = edit['curso'] ?? '';
-      horasCompradas =
-          (edit['horas_compradas'] as num?)?.toDouble() ?? 0.0;
-      horasVoadas = (edit['horas_voadas'] as num?)?.toDouble() ?? 0.0;
+      _cpfController.text = edit['cpf'] ?? '';
+      _canacController.text = edit['canac']?.toString() ?? '';
+      _nomeController.text = edit['nome'] ?? '';
+      _telefoneController.text = edit['telefone'] ?? '';
+      _emailController.text = edit['email'] ?? '';
+      _cursoController.text = edit['curso'] ?? '';
+
+      _cepController.text = edit['cep'] ?? '';
+      _logradouroController.text = edit['logradouro'] ?? '';
+      _numeroController.text = edit['numero'] ?? '';
+      _complementoController.text = edit['complemento'] ?? '';
+      _bairroController.text = edit['bairro'] ?? '';
+      _cidadeController.text = edit['cidade'] ?? '';
+      _estadoController.text = edit['estado'] ?? '';
+
+      _horasCompradasController.text =
+          (edit['horas_compradas'] as num?)?.toString() ?? '';
+      _horasVoadasController.text =
+          (edit['horas_voadas'] as num?)?.toString() ?? '';
+
       this.edit = edit;
-    } else {
-      cpfMaskFormatter.clear();
     }
 
     showDialog(
@@ -149,39 +210,37 @@ class _TelaAlunoState extends State<TelaAluno> {
             child: Column(
               children: [
                 TextFormField(
-                  initialValue: nome,
+                  controller: _nomeController,
                   decoration: InputDecoration(labelText: 'Nome'),
-                  onChanged: (val) => nome = val,
                 ),
                 TextFormField(
                   decoration: InputDecoration(labelText: 'CPF'),
                   keyboardType: TextInputType.number,
                   inputFormatters: [cpfMaskFormatter],
-                  controller: TextEditingController(
-                      text: cpfMaskFormatter.maskText(cpf)),
-                  onChanged: (val) {
-                    cpf = cpfMaskFormatter.getUnmaskedText();
-                  },
+                  controller: _cpfController,
                   enabled: edit == null,
                 ),
                 TextFormField(
-                  initialValue: canac,
                   decoration: InputDecoration(labelText: 'CANAC'),
                   keyboardType: TextInputType.number,
-                  onChanged: (val) => canac = val,
+                  inputFormatters: [canacMaskFormatter],
+                  controller: _canacController,
+                  enabled: edit == null,
                 ),
                 TextFormField(
-                  initialValue: telefone,
                   decoration: InputDecoration(labelText: 'Telefone'),
-                  onChanged: (val) => telefone = val,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [telefoneMaskFormatter],
+                  controller: _telefoneController,
                 ),
                 TextFormField(
-                  initialValue: email,
+                  controller: _emailController,
                   decoration: InputDecoration(labelText: 'E-mail'),
-                  onChanged: (val) => email = val,
                 ),
                 DropdownButtonFormField<String>(
-                  value: curso.isNotEmpty ? curso : null,
+                  value: _cursoController.text.isNotEmpty
+                      ? _cursoController.text
+                      : null,
                   decoration: InputDecoration(labelText: 'Curso'),
                   items: cursosDisponiveis.map((String value) {
                     return DropdownMenuItem<String>(
@@ -189,25 +248,54 @@ class _TelaAlunoState extends State<TelaAluno> {
                       child: Text(value),
                     );
                   }).toList(),
+                  onChanged: (val) => _cursoController.text = val ?? '',
+                ),
+                TextFormField(
+                  decoration: InputDecoration(labelText: 'CEP'),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [cepMaskFormatter],
+                  controller: _cepController,
                   onChanged: (val) {
-                    setState(() {
-                      curso = val ?? '';
-                    });
+                    final rawCep =
+                    cepMaskFormatter.getUnmaskedText(); // só números
+                    if (rawCep.length == 8) _buscarEnderecoPorCep(rawCep);
                   },
                 ),
                 TextFormField(
-                  initialValue: horasCompradas.toString(),
-                  decoration: InputDecoration(labelText: 'Horas Compradas'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) =>
-                  horasCompradas = double.tryParse(val) ?? 0.0,
+                  controller: _cidadeController,
+                  decoration: InputDecoration(labelText: 'Cidade'),
+                  enabled: false,
                 ),
                 TextFormField(
-                  initialValue: horasVoadas.toString(),
+                  controller: _estadoController,
+                  decoration: InputDecoration(labelText: 'Estado'),
+                  enabled: false,
+                ),
+                TextFormField(
+                  controller: _logradouroController,
+                  decoration: InputDecoration(labelText: 'Logradouro'),
+                ),
+                TextFormField(
+                  controller: _bairroController,
+                  decoration: InputDecoration(labelText: 'Bairro'),
+                ),
+                TextFormField(
+                  controller: _numeroController,
+                  decoration: InputDecoration(labelText: 'Número'),
+                ),
+                TextFormField(
+                  controller: _complementoController,
+                  decoration: InputDecoration(labelText: 'Complemento'),
+                ),
+                TextFormField(
+                  controller: _horasCompradasController,
+                  decoration: InputDecoration(labelText: 'Horas Compradas'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextFormField(
+                  controller: _horasVoadasController,
                   decoration: InputDecoration(labelText: 'Horas Voadas'),
                   keyboardType: TextInputType.number,
-                  onChanged: (val) =>
-                  horasVoadas = double.tryParse(val) ?? 0.0,
                 ),
               ],
             ),
@@ -231,22 +319,23 @@ class _TelaAlunoState extends State<TelaAluno> {
   }
 
   Future<void> _salvarAluno() async {
-    if (cpf.isEmpty || nome.isEmpty || curso.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Preencha os campos obrigatórios')),
-      );
-      return;
-    }
-
     final alunoData = {
-      'cpf': cpf,
-      'canac': int.tryParse(canac) ?? 0,
-      'nome': nome,
-      'telefone': telefone,
-      'email': email,
-      'curso': curso,
-      'horas_compradas': horasCompradas,
-      'horas_voadas': horasVoadas,
+      'cpf': _cpfController.text,
+      'canac': int.tryParse(_canacController.text) ?? 0,
+      'nome': _nomeController.text,
+      'telefone': _telefoneController.text,
+      'email': _emailController.text,
+      'curso': _cursoController.text,
+      'cep': _cepController.text,
+      'logradouro': _logradouroController.text,
+      'numero': _numeroController.text,
+      'complemento': _complementoController.text,
+      'bairro': _bairroController.text,
+      'cidade': _cidadeController.text,
+      'estado': _estadoController.text,
+      'horas_compradas':
+      double.tryParse(_horasCompradasController.text) ?? 0.0,
+      'horas_voadas': double.tryParse(_horasVoadasController.text) ?? 0.0,
     };
 
     try {
@@ -254,7 +343,7 @@ class _TelaAlunoState extends State<TelaAluno> {
 
       if (edit != null) {
         response = await http.put(
-          Uri.parse('$apiUrl/$cpf'),
+          Uri.parse('$apiUrl/${_cpfController.text}'),
           headers: {"Content-Type": "application/json; charset=UTF-8"},
           body: utf8.encode(jsonEncode(alunoData)),
         );
@@ -276,16 +365,11 @@ class _TelaAlunoState extends State<TelaAluno> {
                   : 'Aluno salvo com sucesso!')),
         );
       } else {
-        debugPrint(
-            'Erro ao salvar/atualizar aluno: status ${response.statusCode}, body: ${response.body}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  'Erro ao salvar/atualizar aluno (status ${response.statusCode})')),
+          SnackBar(content: Text('Erro ao salvar/atualizar aluno')),
         );
       }
     } catch (e) {
-      debugPrint('Exceção ao salvar/atualizar aluno: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Falha na conexão com API: $e')),
       );
@@ -304,16 +388,11 @@ class _TelaAlunoState extends State<TelaAluno> {
           SnackBar(content: Text('Aluno deletado com sucesso!')),
         );
       } else {
-        debugPrint(
-            'Erro ao deletar aluno: status ${response.statusCode}, body: ${response.body}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  'Erro ao deletar aluno (status ${response.statusCode})')),
+          SnackBar(content: Text('Erro ao deletar aluno')),
         );
       }
     } catch (e) {
-      debugPrint('Exceção ao deletar aluno: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Falha na conexão com API: $e')),
       );
@@ -321,15 +400,21 @@ class _TelaAlunoState extends State<TelaAluno> {
   }
 
   void _resetFormulario() {
-    cpf = '';
-    cpfMaskFormatter.clear();
-    canac = '';
-    nome = '';
-    telefone = '';
-    email = '';
-    curso = '';
-    horasCompradas = 0.0;
-    horasVoadas = 0.0;
+    _cpfController.clear();
+    _canacController.clear();
+    _nomeController.clear();
+    _telefoneController.clear();
+    _emailController.clear();
+    _cursoController.clear();
+    _cepController.clear();
+    _logradouroController.clear();
+    _numeroController.clear();
+    _complementoController.clear();
+    _bairroController.clear();
+    _cidadeController.clear();
+    _estadoController.clear();
+    _horasCompradasController.clear();
+    _horasVoadasController.clear();
     edit = null;
   }
 }
