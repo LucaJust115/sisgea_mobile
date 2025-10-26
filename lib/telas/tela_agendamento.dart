@@ -23,7 +23,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
   String tipoVoo = 'VFR-D';
   DateTime? dataAgendamento;
   TimeOfDay? horarioAgendamento;
-  String status = 'Pendente';
+  String status = 'Agendado';
 
   List<Map<String, dynamic>> agendamentos = [];
   Map<String, dynamic>? edit;
@@ -51,26 +51,35 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
   Future<void> _carregarListas() async {
     try {
       // Alunos
-      final alunosResp = await http.get(Uri.parse(AppConfig.apiUrl + "/api/alunos"));
+      final alunosResp =
+      await http.get(Uri.parse(AppConfig.apiUrl + "/api/alunos"));
       if (alunosResp.statusCode == 200) {
         final List data = jsonDecode(alunosResp.body);
-        mapAlunos = {for (var a in data) a['nome']: a['cpf'] ?? a['id'] ?? a['nome']};
+        mapAlunos = {
+          for (var a in data) a['nome']: a['cpf'] ?? a['id'] ?? a['nome']
+        };
         print('Alunos carregados: ${mapAlunos.length}');
       }
 
       // Instrutores
-      final instrutoresResp = await http.get(Uri.parse(AppConfig.apiUrl + "/api/instrutores"));
+      final instrutoresResp =
+      await http.get(Uri.parse(AppConfig.apiUrl + "/api/instrutores"));
       if (instrutoresResp.statusCode == 200) {
         final List data = jsonDecode(instrutoresResp.body);
-        mapInstrutores = {for (var i in data) i['nome']: i['cpf'] ?? i['nome']};
+        mapInstrutores = {
+          for (var i in data) i['nome']: i['cpf'] ?? i['nome']
+        };
         print('Instrutores carregados: ${mapInstrutores.length}');
       }
 
       // Aeronaves
-      final aeronavesResp = await http.get(Uri.parse(AppConfig.apiUrl + "/api/aeronaves"));
+      final aeronavesResp =
+      await http.get(Uri.parse(AppConfig.apiUrl + "/api/aeronaves"));
       if (aeronavesResp.statusCode == 200) {
         final List data = jsonDecode(aeronavesResp.body);
-        mapAeronaves = {for (var a in data) a['matricula']: a['matricula'] ?? a['id']};
+        mapAeronaves = {
+          for (var a in data) a['matricula']: a['matricula'] ?? a['id']
+        };
         print('Aeronaves carregadas: ${mapAeronaves.length}');
       }
 
@@ -106,7 +115,8 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                   children: [
                     IconButton(
                       icon: Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => _abrirFormularioAgendamento(edit: ag),
+                      onPressed: () =>
+                          _abrirFormularioAgendamento(edit: ag),
                     ),
                     IconButton(
                       icon: Icon(Icons.delete, color: Colors.red),
@@ -128,17 +138,31 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
 
   void _abrirFormularioAgendamento({Map<String, dynamic>? edit}) {
     if (edit != null) {
-      aeronaveSelecionada = edit['aeronave']?['matricula'];
-      alunoSelecionado = edit['aluno']?['nome'];
-      instrutorSelecionado = edit['instrutor']?['nome'];
-      partida = edit['origem'] ?? '';
-      destino = edit['destino'] ?? '';
-      tipoVoo = edit['tipoVoo'] ?? 'VFR-D';
-      DateTime dt = DateTime.parse(edit['data']);
-      dataAgendamento = DateTime(dt.year, dt.month, dt.day);
-      horarioAgendamento = TimeOfDay(hour: dt.hour, minute: dt.minute);
-      status = edit['status'] ?? 'Pendente';
-      this.edit = edit;
+      try {
+        aeronaveSelecionada = edit['aeronave']?['matricula']?.toString();
+        alunoSelecionado = edit['aluno']?['nome']?.toString();
+        instrutorSelecionado = edit['instrutor']?['nome']?.toString();
+        partida = (edit['origem'] ?? edit['partida'] ?? '').toString();
+        destino = (edit['destino'] ?? '').toString();
+        tipoVoo = (edit['tipo_voo'] ?? edit['tipoVoo'] ?? 'VFR-D').toString();
+        status = (edit['status'] ?? 'Agendado').toString();
+
+        // Verifica e converte a data, protegendo contra null ou formato inesperado
+        if (edit['data'] != null && edit['data'].toString().isNotEmpty) {
+          try {
+            DateTime dt = DateTime.parse(edit['data'].toString());
+            dataAgendamento = DateTime(dt.year, dt.month, dt.day);
+            horarioAgendamento = TimeOfDay(hour: dt.hour, minute: dt.minute);
+          } catch (_) {
+            dataAgendamento = null;
+            horarioAgendamento = null;
+          }
+        }
+
+        this.edit = edit;
+      } catch (e) {
+        print('Erro ao carregar dados para edição: $e');
+      }
     }
 
     showDialog(
@@ -154,7 +178,9 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                   items: mapAeronaves.keys
                       .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                       .toList(),
-                  value: aeronaveSelecionada,
+                  value: mapAeronaves.keys.contains(aeronaveSelecionada)
+                      ? aeronaveSelecionada
+                      : null,
                   onChanged: (val) => setState(() => aeronaveSelecionada = val),
                 ),
                 DropdownButtonFormField<String>(
@@ -162,7 +188,9 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                   items: mapAlunos.keys
                       .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                       .toList(),
-                  value: alunoSelecionado,
+                  value: mapAlunos.keys.contains(alunoSelecionado)
+                      ? alunoSelecionado
+                      : null,
                   onChanged: (val) => setState(() => alunoSelecionado = val),
                 ),
                 DropdownButtonFormField<String>(
@@ -170,7 +198,9 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                   items: mapInstrutores.keys
                       .map((i) => DropdownMenuItem(value: i, child: Text(i)))
                       .toList(),
-                  value: instrutorSelecionado,
+                  value: mapInstrutores.keys.contains(instrutorSelecionado)
+                      ? instrutorSelecionado
+                      : null,
                   onChanged: (val) => setState(() => instrutorSelecionado = val),
                 ),
                 TextFormField(
@@ -189,7 +219,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
                   value: tipoVoo,
-                  onChanged: (val) => setState(() => tipoVoo = val!),
+                  onChanged: (val) => setState(() => tipoVoo = val ?? 'VFR-D'),
                 ),
                 SizedBox(height: 10),
                 ElevatedButton(
@@ -226,6 +256,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
     );
   }
 
+
   Future<void> _salvarAgendamento() async {
     if (aeronaveSelecionada == null ||
         alunoSelecionado == null ||
@@ -240,7 +271,8 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
       return;
     }
 
-    DateTime dataCompleta = DateTime(
+    // Constrói a data completa e converte para UTC ISO8601
+    final dataCompleta = DateTime(
       dataAgendamento!.year,
       dataAgendamento!.month,
       dataAgendamento!.day,
@@ -256,8 +288,9 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
       "destino": destino,
       "tipo_voo": tipoVoo,
       "status": status,
-      "horario_partida": dataCompleta.toString().split('.').first,
-      "horario_retorno": dataCompleta.add(Duration(hours: 1)).toString().split('.').first,
+      "horario_partida": dataCompleta.toUtc().toIso8601String(),
+      "horario_retorno":
+      dataCompleta.add(Duration(hours: 1)).toUtc().toIso8601String(),
     };
 
     print("JSON ENVIADO:");
@@ -324,7 +357,7 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
     tipoVoo = 'VFR-D';
     dataAgendamento = null;
     horarioAgendamento = null;
-    status = 'Pendente';
+    status = 'Agendado';
     edit = null;
   }
 
@@ -346,7 +379,8 @@ class _TelaAgendamentoState extends State<TelaAgendamento> {
       initialTime: TimeOfDay.now(),
       builder: (BuildContext context, Widget? child) {
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          data:
+          MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
           child: child!,
         );
       },

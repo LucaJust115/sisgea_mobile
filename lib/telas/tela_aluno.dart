@@ -105,19 +105,6 @@ class _TelaAlunoState extends State<TelaAluno> {
     }
   }
 
-  Future<bool> _cpfOuCanacJaExiste(String campo, String valor) async {
-    try {
-      final response = await http.get(Uri.parse("$apiUrl?$campo=$valor"));
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.isNotEmpty;
-      }
-    } catch (e) {
-      debugPrint("Erro ao verificar duplicidade: $e");
-    }
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,13 +132,16 @@ class _TelaAlunoState extends State<TelaAluno> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: Icon(Icons.edit, color: Colors.blue),
+                            icon:
+                            Icon(Icons.edit, color: Colors.blue),
                             onPressed: () =>
                                 _abrirFormularioAluno(edit: aluno),
                           ),
                           IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deletarAluno(aluno),
+                            icon:
+                            Icon(Icons.delete, color: Colors.red),
+                            onPressed: () =>
+                                _deletarAluno(aluno),
                           ),
                         ],
                       ),
@@ -184,7 +174,6 @@ class _TelaAlunoState extends State<TelaAluno> {
       _telefoneController.text = edit['telefone'] ?? '';
       _emailController.text = edit['email'] ?? '';
       _cursoController.text = edit['curso'] ?? '';
-
       _cepController.text = edit['cep'] ?? '';
       _logradouroController.text = edit['logradouro'] ?? '';
       _numeroController.text = edit['numero'] ?? '';
@@ -192,12 +181,10 @@ class _TelaAlunoState extends State<TelaAluno> {
       _bairroController.text = edit['bairro'] ?? '';
       _cidadeController.text = edit['cidade'] ?? '';
       _estadoController.text = edit['estado'] ?? '';
-
       _horasCompradasController.text =
           (edit['horas_compradas'] as num?)?.toString() ?? '';
       _horasVoadasController.text =
           (edit['horas_voadas'] as num?)?.toString() ?? '';
-
       this.edit = edit;
     }
 
@@ -318,7 +305,7 @@ class _TelaAlunoState extends State<TelaAluno> {
     );
   }
 
-  Future<void> _salvarAluno() async {
+  Future<void> _salvarAluno({bool forcar = false}) async {
     final alunoData = {
       'cpf': _cpfController.text,
       'canac': int.tryParse(_canacController.text) ?? 0,
@@ -336,23 +323,53 @@ class _TelaAlunoState extends State<TelaAluno> {
       'horas_compradas':
       double.tryParse(_horasCompradasController.text) ?? 0.0,
       'horas_voadas': double.tryParse(_horasVoadasController.text) ?? 0.0,
+      'ativo': true, // ✅ Campo adicionado para o backend não quebrar
     };
 
     try {
       http.Response response;
+      final url = edit != null
+          ? '$apiUrl/${_cpfController.text}?forcar=$forcar'
+          : '$apiUrl?forcar=$forcar';
 
       if (edit != null) {
         response = await http.put(
-          Uri.parse('$apiUrl/${_cpfController.text}'),
+          Uri.parse(url),
           headers: {"Content-Type": "application/json; charset=UTF-8"},
           body: utf8.encode(jsonEncode(alunoData)),
         );
       } else {
         response = await http.post(
-          Uri.parse(apiUrl),
+          Uri.parse(url),
           headers: {"Content-Type": "application/json; charset=UTF-8"},
           body: utf8.encode(jsonEncode(alunoData)),
         );
+      }
+
+      final respBody = jsonDecode(utf8.decode(response.bodyBytes));
+
+      if (respBody['warn'] != null && forcar == false) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text('Atenção'),
+            content: Text(respBody['warn']),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _salvarAluno(forcar: true);
+                },
+                child: Text('Confirmar'),
+              ),
+            ],
+          ),
+        );
+        return;
       }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -363,6 +380,10 @@ class _TelaAlunoState extends State<TelaAluno> {
               content: Text(edit != null
                   ? 'Aluno atualizado com sucesso!'
                   : 'Aluno salvo com sucesso!')),
+        );
+      } else if (respBody['error'] != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(respBody['error'])),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
