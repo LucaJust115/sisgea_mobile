@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../config.dart';
 
 class TelaManutencao extends StatefulWidget {
   @override
@@ -7,166 +10,192 @@ class TelaManutencao extends StatefulWidget {
 }
 
 class _TelaManutencaoState extends State<TelaManutencao> {
-  List<Map<String, dynamic>> manutencoes = [];
+  final String apiUrl = AppConfig.apiUrl + "/api/manutencoes";
+  final String apiAeronaves = AppConfig.apiUrl + "/api/aeronaves";
 
-  final TextEditingController descricaoController = TextEditingController();
-  final TextEditingController statusController = TextEditingController();
-  DateTime? dataEstimada;
+  List manutencoes = [];
+  List aeronaves = [];
+  bool isLoading = true;
 
-  Map<String, dynamic>? editando;
+  @override
+  void initState() {
+    super.initState();
+    _buscarAeronaves();
+    _buscarManutencoes();
+  }
 
-  void salvarManutencao() {
-    if (descricaoController.text.isEmpty ||
-        statusController.text.isEmpty ||
-        dataEstimada == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Preencha todos os campos!")),
-      );
-      return;
+  Future<void> _buscarAeronaves() async {
+    try {
+      final response = await http.get(Uri.parse(apiAeronaves));
+      if (response.statusCode == 200) {
+        setState(() {
+          aeronaves = json.decode(response.body);
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _buscarManutencoes() async {
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+      if (response.statusCode == 200) {
+        setState(() {
+          manutencoes = json.decode(response.body);
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      _mostrarErro("Falha ao buscar manutenções");
     }
+  }
 
-    final novaManutencao = {
-      "id": editando?['id'] ?? DateTime.now().toString(),
-      "descricao": descricaoController.text,
-      "status": statusController.text,
-      "data_est_man": dataEstimada,
-    };
+  Future<void> _salvarManutencao(Map<String, dynamic> manutencao, {bool editar = false}) async {
+    manutencao["status"] = manutencao["status"] ?? "Pendente";
+    manutencao["data_est_man"] = manutencao["data_est_man"] ?? DateFormat("yyyy-MM-dd").format(DateTime.now());
 
-    setState(() {
-      if (editando != null) {
-        final index = manutencoes.indexWhere((m) => m['id'] == editando!['id']);
-        if (index != -1) {
-          manutencoes[index] = novaManutencao;
-        }
-        editando = null;
+    try {
+      final response = editar
+          ? await http.put(
+        Uri.parse("$apiUrl/${manutencao['id']}?forcar=false"),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(manutencao),
+      )
+          : await http.post(
+        Uri.parse("$apiUrl?forcar=false"),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(manutencao),
+      );
+      print(json.encode(manutencao));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        Navigator.pop(context);
+        _buscarManutencoes();
       } else {
-        manutencoes.add(novaManutencao);
+        print(response.body);
+        _mostrarErro("Erro ao salvar manutenção");
       }
-    });
-
-    descricaoController.clear();
-    statusController.clear();
-    dataEstimada = null;
+    } catch (e) {
+      _mostrarErro("Erro de comunicação com o servidor");
+    }
   }
 
-  void editarManutencao(Map<String, dynamic> manutencao) {
-    setState(() {
-      editando = manutencao;
-      descricaoController.text = manutencao['descricao'];
-      statusController.text = manutencao['status'];
-
-      final rawDate = manutencao['data_est_man'];
-      if (rawDate is String) {
-        dataEstimada = DateTime.tryParse(rawDate);
-      } else if (rawDate is DateTime) {
-        dataEstimada = rawDate;
-      }
-    });
+  void _mostrarErro(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void deletarManutencao(String id) {
-    setState(() {
-      manutencoes.removeWhere((m) => m['id'] == id);
-    });
-  }
+  void _abrirFormulario({Map<String, dynamic>? manutencao}) {
+    final TextEditingController descricaoController =
+    TextEditingController(text: manutencao?['descricao'] ?? "");
 
-  Future<void> selecionarData(BuildContext context) async {
-    final hoje = DateTime.now();
-    final selecionada = await showDatePicker(
-      context: context,
-      initialDate: dataEstimada ?? hoje,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+    final TextEditingController dataController =
+    TextEditingController(
+        text: manutencao?['data_est_man'] != null
+            ? DateFormat("yyyy-MM-dd").format(DateTime.parse(manutencao!['data_est_man']))
+            : ""
     );
 
-    if (selecionada != null) {
-      setState(() {
-        dataEstimada = selecionada;
-      });
-    }
+    String? matriculaAeronave = manutencao?['aeronave']?['matricula'];
+    String? status = manutencao?['status'];
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(manutencao == null ? "Nova Manutenção" : "Editar Manutenção"),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              DropdownButtonFormField<String>(
+                decoration: InputDecoration(labelText: "Aeronave"),
+                value: matriculaAeronave,
+                items: aeronaves.map<DropdownMenuItem<String>>((a) {
+                  return DropdownMenuItem(
+                      value: a['matricula'],
+                      child: Text(a['matricula'])
+                  );
+                }).toList(),
+                onChanged: (value) => matriculaAeronave = value,
+              ),
+              TextField(
+                controller: descricaoController,
+                decoration: InputDecoration(labelText: "Descrição"),
+              ),
+              DropdownButtonFormField<String>(
+                value: status,
+                decoration: InputDecoration(labelText: "Status"),
+                items: [
+                  "Pendente",
+                  "Em Andamento",
+                  "Concluída"
+                ].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (value) => status = value,
+              ),
+              TextField(
+                controller: dataController,
+                decoration: InputDecoration(labelText: "Data Estimada (yyyy-MM-dd)"),
+                readOnly: true,
+                onTap: () async {
+                  DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2050)
+                  );
+                  if (picked != null) {
+                    dataController.text = DateFormat("yyyy-MM-dd").format(picked);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text("Cancelar")),
+          ElevatedButton(
+            onPressed: () {
+              if (descricaoController.text.isEmpty ||
+                  dataController.text.isEmpty ||
+                  matriculaAeronave == null ||
+                  status == null) {
+                _mostrarErro("Preencha todos os campos");
+                return;
+              }
+
+              _salvarManutencao({
+                "descricao": descricaoController.text,
+                "data_est_man": dataController.text,
+                "status": status,
+                "aeronave": {"matricula": matriculaAeronave}
+              }, editar: manutencao != null);
+            },
+            child: Text("Salvar"),
+          )
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Manutenções")),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              children: [
-                TextField(
-                  controller: descricaoController,
-                  decoration: InputDecoration(labelText: "Descrição"),
-                ),
-                TextField(
-                  controller: statusController,
-                  decoration: InputDecoration(labelText: "Status"),
-                ),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        dataEstimada == null
-                            ? "Nenhuma data selecionada"
-                            : DateFormat('dd/MM/yyyy').format(dataEstimada!),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => selecionarData(context),
-                      child: Text("Selecionar Data"),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: salvarManutencao,
-                  child: Text(editando != null ? "Atualizar" : "Salvar"),
-                ),
-              ],
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: () => _abrirFormulario(),
+      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : ListView.builder(
+        itemCount: manutencoes.length,
+        itemBuilder: (context, i) {
+          final m = manutencoes[i];
+          return ListTile(
+            title: Text(m['aeronave']?['matricula'] ?? "Sem aeronave"),
+            subtitle: Text("${m['descricao']} - ${m['status']} - ${m['data_est_man']}"),
+            trailing: IconButton(
+              icon: Icon(Icons.edit),
+              onPressed: () => _abrirFormulario(manutencao: m),
             ),
-          ),
-          Divider(),
-          Expanded(
-            child: ListView.builder(
-              itemCount: manutencoes.length,
-              itemBuilder: (context, index) {
-                final m = manutencoes[index];
-                return ListTile(
-                  title: Text(m['descricao']),
-                  subtitle: Text("Status: ${m['status']}"),
-                  trailing: Text(
-                        () {
-                      final rawDate = m['data_est_man'];
-
-                      if (rawDate == null) return "Sem data";
-
-                      DateTime date;
-
-                      if (rawDate is String) {
-                        try {
-                          date = DateTime.parse(rawDate);
-                        } catch (e) {
-                          return "Data inválida";
-                        }
-                      } else if (rawDate is DateTime) {
-                        date = rawDate;
-                      } else {
-                        return "Data inválida";
-                      }
-
-                      return DateFormat('dd/MM/yyyy').format(date);
-                    }(),
-                  ),
-                  onTap: () => editarManutencao(m),
-                  onLongPress: () => deletarManutencao(m['id']),
-                );
-              },
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
