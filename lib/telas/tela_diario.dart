@@ -264,9 +264,17 @@ class _TelaDiarioState extends State<TelaDiario> {
   void _editar(diario) {
     edit = diario;
 
-    aeronaveIdSelecionado = diario["aeronaveId"];
-    alunoIdSelecionado = diario["alunoId"];
-    instrutorIdSelecionado = diario["instrutorId"];
+    aeronaveIdSelecionado = diario['aeronaveId']?.toString()
+        ?? diario['aeronave']?['matricula']?.toString()
+        ?? diario['aeronave']?['id']?.toString();
+
+    alunoIdSelecionado = diario['alunoId']?.toString()
+        ?? diario['aluno']?['cpf']?.toString()
+        ?? diario['aluno']?['id']?.toString();
+
+    instrutorIdSelecionado = diario['instrutorId']?.toString()
+        ?? diario['instrutor']?['cpf']?.toString()
+        ?? diario['instrutor']?['id']?.toString();
 
     nroDiario.text = diario["nroDiario"]?.toString() ?? "";
 
@@ -287,7 +295,7 @@ class _TelaDiarioState extends State<TelaDiario> {
     if (diario["dataDecolagem"] != null) {
       try {
         final dt = DateTime.parse(diario["dataDecolagem"]);
-        dataDecolagemSelecionada = dt;
+        dataDecolagemSelecionada = DateTime(dt.year, dt.month, dt.day);
         horaDecolagemSelecionada = TimeOfDay(hour: dt.hour, minute: dt.minute);
       } catch (e) {
         dataDecolagemSelecionada = null;
@@ -299,7 +307,7 @@ class _TelaDiarioState extends State<TelaDiario> {
     if (diario["dataPouso"] != null) {
       try {
         final dt = DateTime.parse(diario["dataPouso"]);
-        dataPousoSelecionada = dt;
+        dataPousoSelecionada = DateTime(dt.year, dt.month, dt.day);
         horaPousoSelecionada = TimeOfDay(hour: dt.hour, minute: dt.minute);
       } catch (e) {
         dataPousoSelecionada = null;
@@ -314,7 +322,7 @@ class _TelaDiarioState extends State<TelaDiario> {
     if (diario["dataCorte"] != null) {
       try {
         final dt = DateTime.parse(diario["dataCorte"]);
-        dataCorteSelecionada = dt;
+        dataCorteSelecionada = DateTime(dt.year, dt.month, dt.day);
         horaCorteSelecionada = TimeOfDay(hour: dt.hour, minute: dt.minute);
       } catch (e) {
         dataCorteSelecionada = null;
@@ -336,6 +344,7 @@ class _TelaDiarioState extends State<TelaDiario> {
 
     _abrirForm();
   }
+
 
   Future<void> _deletar(id) async {
     final confirmar = await showDialog<bool>(
@@ -405,13 +414,13 @@ class _TelaDiarioState extends State<TelaDiario> {
                       ),
                       items: aeronaves.map((a) {
                         return DropdownMenuItem<String>(
-                          value: a['id'],
+                          value: a['id'].toString(), // <- convertendo pra String
                           child: Text("${a['matricula']} - ${a['modelo'] ?? ''}"),
                         );
                       }).toList(),
                       onChanged: (v) => setDialogState(() => aeronaveIdSelecionado = v),
-                      validator: null, // Remove validação do FormField
                     ),
+
                     const SizedBox(height: 8),
 
                     // Dropdown Aluno
@@ -423,13 +432,13 @@ class _TelaDiarioState extends State<TelaDiario> {
                       ),
                       items: alunos.map((a) {
                         return DropdownMenuItem<String>(
-                          value: a['id'],
+                          value: a['id'].toString(), // <- convertendo pra String
                           child: Text(a['nome'] ?? 'Sem nome'),
                         );
                       }).toList(),
                       onChanged: (v) => setDialogState(() => alunoIdSelecionado = v),
-                      validator: null, // Remove validação do FormField
                     ),
+
                     const SizedBox(height: 8),
 
                     // Dropdown Instrutor
@@ -441,13 +450,13 @@ class _TelaDiarioState extends State<TelaDiario> {
                       ),
                       items: instrutores.map((i) {
                         return DropdownMenuItem<String>(
-                          value: i['id'],
+                          value: i['id'].toString(), // <- convertendo pra String
                           child: Text(i['nome'] ?? 'Sem nome'),
                         );
                       }).toList(),
                       onChanged: (v) => setDialogState(() => instrutorIdSelecionado = v),
-                      validator: null, // Remove validação do FormField
                     ),
+
                     const SizedBox(height: 8),
 
                     campo(nroDiario, "Número do Diário", number: true),
